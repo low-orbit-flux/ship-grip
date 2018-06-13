@@ -1,16 +1,28 @@
 
+import sys
+import os
 import subprocess
 import re
 import socket
-#from _thread import *
 import threading
+from daemon import Daemon    # from sander-daemon package
+import logging
+import logging.handlers
+
 
 disks = ['sda', 'sdb', 'sdc', 'sdd', 'sde']
 p_errors = re.compile(r'No Errors Logged')
 
 
+handler = logging.handlers.WatchedFileHandler(os.environ.get("LOGFILE", "ship-grip-agent.log"))
+handler.setFormatter(logging.Formatter(logging.BASIC_FORMAT))
+root = logging.getLogger()
+root.setLevel(os.environ.get("LOGLEVEL", "INFO"))
+root.addHandler(handler)
+
+
 def disk_status():
-    print('\n' * 5 + 20 * '=' + '| Disk Status |' + 20 * '=')
+    logging.info('\n' * 5 + 20 * '=' + '| Disk Status |' + 20 * '=')
     status = '\n' * 5 + 20 * '=' + '| Disk Status |' + 20 * '=' + '\n'
     for i in disks:
         output = ""
@@ -21,17 +33,17 @@ def disk_status():
         m_errors = None
         m_errors = p_errors.search(output)
         if m_errors:
-            print(i + ": OK")
+            logging.info(i + ": OK")
             status += i + ": OK\n"
         else:
-            print(i + ": ERROR")
+            logging.info(i + ": ERROR")
             status += i + ": ERROR\n"
-    #    print(m_errors.group())
+
     return status
 
 
 def raid_status():
-    print('\n' * 3 + 20 * '=' + '| Array Status |' + 20 * '=')
+    logging.info('\n' * 3 + 20 * '=' + '| Array Status |' + 20 * '=')
     status = '\n' * 3 + 20 * '=' + '| Array Status |' + 20 * '=' + '\n'
     RAID_arrays = ['md0']
     p_array_status = re.compile(r'State : (.*)')
@@ -44,10 +56,10 @@ def raid_status():
         m_array_status = None
         m_array_status = p_array_status.search(output)
         if m_array_status:
-            print(m_array_status.group())
+            logging.info(m_array_status.group())
             status += m_array_status.group() + "\n"
         else:
-            print("Something went wrong... Can't parse mdadm output.  Check it manually.")
+            logging.info("ERROR - Something went wrong... Can't parse mdadm output.  Check it manually.")
             status += "Something went wrong... Can't parse mdadm output.  Check it manually.\n"
 
     return status
@@ -55,7 +67,7 @@ def raid_status():
 
 def command_parse(command):
     command = command.rstrip()
-    print("["+command + "]")
+    logging.info("["+command + "]")
     if command == "disk-status":
         output = disk_status()
     elif command == "raid-status":
@@ -69,11 +81,11 @@ def server_talk(c):
     while True:
         data = c.recv(1024)
         if data:
-            print("received a command")
+            logging.info("received a command " + data)
             output = command_parse(data)
             c.send(output + "done - got our data")
         else:
-            print("client disconnected")
+            logging.info("client disconnected")
             break
 
 
@@ -82,17 +94,53 @@ def server():
     port = 22000
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.bind((host, port))
-    print("socket bound", port)
+    logging.info("socket bound", port)
     s.listen(25)    # queue 25 connection requests before refusing requests
-    print("socket listening")
+    logging.info("socket listening")
 
     while True:
         c, addr = s.accept()    # accept client connection
-        print("Client connected :" + str(addr[0]) + ':' + str(addr[1]))
+        logging.info("Client connected :" + str(addr[0]) + ':' + str(addr[1]))
         #server_talk(c)
         threading.Thread(target=server_talk, args=(c,)).start()
     s.close()
 
 
+def usage():
+    output = """
+    Usage:
+        agent start     # start as a service
+        agent stop      # stop running service"
+        agent fg        # run in the foreground
+
+
+        """
+    print output
+
+
+class MyDaemon(Daemon):
+    """
+    Extend the Daemon class so we can override the run method and launch our own server function
+    """
+    def run(self):
+        server()
+
+
 if __name__ == "__main__":
-    server()
+
+    pid = "/tmp/ship-grip-agent.pid"
+    md = MyDaemon(pid)
+
+    if len(sys.argv) == 2:
+        if sys.argv[1] == "start":
+            md.start()
+        elif sys.argv[1] == "stop":
+            md.stop()
+        elif sys.argv[1] == "fg":
+            server()
+        else:
+            usage()
+
+    else:
+        usage()
+
