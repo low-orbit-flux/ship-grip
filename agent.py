@@ -23,44 +23,62 @@ root.addHandler(handler)
 
 def disk_status():
     logging.info('\n' * 5 + 20 * '=' + '| Disk Status |' + 20 * '=')
-    status = '\n' * 5 + 20 * '=' + '| Disk Status |' + 20 * '=' + '\n'
+    status = '{"disk-status": {'
+    errors_found = False
+    details = ""
     for i in disks:
         output = ""
         try:
             output = subprocess.check_output('smartctl -a /dev/' + i, stderr=subprocess.STDOUT, shell=True)
         except:
             pass
-        m_errors = None
         m_errors = p_errors.search(output)
         if m_errors:
             logging.info(i + ": OK")
-            status += i + ": OK\n"
+            details += '"' + i + '": "OK"'
         else:
             logging.info(i + ": ERROR")
-            status += i + ": ERROR\n"
-
+            details += '"' + i + '": "ERROR"'
+            errors_found = True
+        if errors_found:
+            status += '"status": "ERROR",'
+        else:
+            status += '"status": "OK",'
+        status += ' "details": [' + details + ']}'
     return status
 
 
 def raid_status():
     logging.info('\n' * 3 + 20 * '=' + '| Array Status |' + 20 * '=')
-    status = '\n' * 3 + 20 * '=' + '| Array Status |' + 20 * '=' + '\n'
+    status = '{"raid-status": {'
     RAID_arrays = ['md0']
     p_array_status = re.compile(r'State : (.*)')
+    p_array_status_clean = re.compile(r'State : clean')
+    errors_found = False
+    details = ""
     for i in RAID_arrays:
         output = ""
         try:
             output = subprocess.check_output('mdadm --detail /dev/' + i, stderr=subprocess.STDOUT, shell=True)
         except:
-            pass
-        m_array_status = None
+            logging.info("ERROR: problem getting mdadm output")
         m_array_status = p_array_status.search(output)
         if m_array_status:
+            m_array_status_clean = p_array_status_clean.search(output)
+            if not m_array_status_clean:
+                errors_found = True
+                details += "ERROR - state not clean:  "
             logging.info(m_array_status.group())
-            status += m_array_status.group() + "\n"
+            details += m_array_status.group() + "\n"
         else:
             logging.info("ERROR - Something went wrong... Can't parse mdadm output.  Check it manually.")
-            status += "Something went wrong... Can't parse mdadm output.  Check it manually.\n"
+            details += "Something went wrong... Can't parse mdadm output.  Check it manually.\n"
+            errors_found = True
+        if errors_found:
+            pass
+        else:
+            status += '"status": "OK",'
+        status += '"details": "' + details + '"}'
 
     return status
 

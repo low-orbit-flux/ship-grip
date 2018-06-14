@@ -17,7 +17,7 @@ PORT = 22000
 POLL_INTERVAL = 30   # poll every 30 seconds,  might want to set it to 5 minutes
 
 p_end_connection = re.compile(r'done - got our data')
-
+live_status = {}
 
 handler = logging.handlers.WatchedFileHandler(os.environ.get("LOGFILE", "ship-grip-agent.log"))
 handler.setFormatter(logging.Formatter(logging.BASIC_FORMAT))
@@ -29,29 +29,41 @@ root.addHandler(handler)
 def poll_agent(host, checks):
     status = ""
     for i in checks:
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        s.connect((host, PORT))
-        s.send(i.encode('ascii'))
-        while True:
-            status += s.recv(1024)
-            if not status:  # agent disconnected, not normal
-                break
-            m_end = p_end_connection.search(status)
-            if m_end:       # end of message found
-                break       # stop receiving data
-        s.close()
+        try:
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            s.connect((host, PORT))
+            s.send(i.encode('ascii'))
+            logging.info("polling....")
+            while True:
+                status += s.recv(1024)
+                if not status:  # agent disconnected, not normal
+                    break
+                m_end = p_end_connection.search(status)
+                if m_end:       # end of message found
+                    break       # stop receiving data
+                logging.info("stuck")
+            s.close()
+        except socket.error, msg:
+            logging.info("ERROR: " + str(msg))
+
+        if status == "":
+            logging.info("ERROR: no heart beat from agent")
+        else:
+            logging.info(status)
+            live_status["disk and raid"] = status
+
     return status
 
 
 def poll_loop():
     while True:
         checks = ['disk-status', 'raid-status']
-        status = poll_agent(host, checks)
-        logging.info(status)
+        poll_agent(host, checks)
+
         time.sleep(POLL_INTERVAL)
 
 
-def saveAlert():
+def save_alert():
     pass
     #client = MongoClient('localhost', 27017)
 
