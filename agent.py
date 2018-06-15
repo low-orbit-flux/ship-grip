@@ -35,16 +35,17 @@ def disk_status():
         m_errors = p_errors.search(output)
         if m_errors:
             logging.info(i + ": OK")
-            details += '"' + i + '": "OK"'
+            details += '"' + i + '": "OK",'
         else:
             logging.info(i + ": ERROR")
-            details += '"' + i + '": "ERROR"'
+            details += '"' + i + '": "ERROR",'
             errors_found = True
-        if errors_found:
-            status += '"status": "ERROR",'
-        else:
-            status += '"status": "OK",'
-        status += ' "details": [' + details + ']}'
+    if errors_found:
+        status += '"status": "ERROR",'
+    else:
+        status += '"status": "OK",'
+    details = details.rstrip(',')    # leave out last comma
+    status += ' "details": {' + details + '}}}'
     return status
 
 
@@ -53,7 +54,7 @@ def raid_status():
     status = '{"raid-status": {'
     RAID_arrays = ['md0']
     p_array_status = re.compile(r'State : (.*)')
-    p_array_status_clean = re.compile(r'State : clean')
+    p_array_status_clean = re.compile(r'State : clean|State : active')
     errors_found = False
     details = ""
     for i in RAID_arrays:
@@ -69,7 +70,7 @@ def raid_status():
                 errors_found = True
                 details += "ERROR - state not clean:  "
             logging.info(m_array_status.group())
-            details += m_array_status.group() + "\n"
+            details += m_array_status.group()
         else:
             logging.info("ERROR - Something went wrong... Can't parse mdadm output.  Check it manually.")
             details += "Something went wrong... Can't parse mdadm output.  Check it manually.\n"
@@ -78,8 +79,8 @@ def raid_status():
             pass
         else:
             status += '"status": "OK",'
-        status += '"details": "' + details + '"}'
-
+        status += '"details": "' + details + '"}}'
+    logging.info(status)
     return status
 
 
