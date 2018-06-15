@@ -128,9 +128,9 @@ def server():
 def usage():
     output = """
     Usage:
-        agent start     # start as a service
-        agent stop      # stop running service"
-        agent fg        # run in the foreground
+        agent.py start     # start as a service
+        agent.py stop      # stop running service"
+        agent.py fg        # run in the foreground
 
 
         """

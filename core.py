@@ -12,7 +12,6 @@ import logging.handlers
 import threading
 import json
 
-host = "duck-puppy"
 
 PORT = 22000
 POLL_INTERVAL = 30   # poll every 30 seconds,  might want to set it to 5 minutes
@@ -70,7 +69,7 @@ def poll_loop():
 
 def save_alert():
     pass
-    #client = MongoClient('localhost', 27017)
+    # client = MongoClient('localhost', 27017)
 
 
 def cache_view():
@@ -126,9 +125,9 @@ def client_interface_server():
 def usage():
     output = """
     Usage:
-        core start     # start as a service
-        core stop      # stop running service"
-        core fg        # run in the foreground
+        core.py start     # start as a service
+        core.py stop      # stop running service"
+        core.py fg        # run in the foreground
         
         
         """
